@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "468695416016",
+    "project_id": "sms-vault-abf50",
+    "storage_bucket": "sms-vault-abf50.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:468695416016:android:65729401c885dab94032d5",
+        "android_client_info": {
+          "package_name": "com.smsvault"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "468695416016-0fdj6no1j08r1mgmosl5ke6bhuf0smc8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.smsvault",
+            "certificate_hash": "a96df6405c5b7c6c9efc7b4812194ee1cde484be"
+          }
+        },
+        {
+          "client_id": "468695416016-t4to6mo4c3mb299n9p6o6v7vse4nggij.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAe87pbFkqH_LrX4qzWBJuDgxHqRO8HwiI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "468695416016-t4to6mo4c3mb299n9p6o6v7vse4nggij.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
