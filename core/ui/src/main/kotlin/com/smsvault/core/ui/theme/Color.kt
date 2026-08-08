@@ -29,7 +29,7 @@ val LightPrimaryAccent = Color(0xFF059669)      // Rich Emerald Green
 val LightSecondaryAccent = Color(0xFF10B981)    // Vibrant Mint Emerald
 val LightTertiaryGlow = Color(0xFF047857)       // Deep Forest Accent
 val LightTextPrimary = Color(0xFF064E3B)        // Deep Emerald Dark Text
-val LightTextSecondary = Color(0xFF047857)      // Muted Emerald Text
+val LightTextSecondary = Color(0xFF065F46)      // Darker Forest Emerald — improved contrast on mint backgrounds
 
 // ------------------------------------------------------------------------------
 // SHARED STATUS CONSTANTS

@@ -55,6 +55,7 @@ class UploadWorker(
         val timestamp = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
         val fullTimestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
         val backupIds = mutableListOf<String>()
+        var anyCloudUploadFailed = false
 
         for (i in encryptedPaths.indices) {
             val encryptedPath = encryptedPaths[i]
@@ -82,9 +83,16 @@ class UploadWorker(
             val localHandle = localUploadResult.getOrElse { return Result.failure(workDataOf("error" to "Local storage write failed: ${it.message}")) }
 
             var remoteFileId: String? = null
+            var cloudUploadFailed = false
             if (cloudProvider != null && cloudProvider.isAuthorized()) {
                 val remoteResult = cloudProvider.upload(payloadFile)
-                remoteFileId = remoteResult.getOrNull()?.id
+                if (remoteResult.isSuccess) {
+                    remoteFileId = remoteResult.getOrNull()?.id
+                } else {
+                    cloudUploadFailed = true
+                    anyCloudUploadFailed = true
+                    android.util.Log.e("UploadWorker", "Cloud upload failed: ${remoteResult.exceptionOrNull()?.message}")
+                }
             }
 
             val backupId = UUID.randomUUID().toString()
@@ -120,6 +128,11 @@ class UploadWorker(
             }
         }
 
-        return Result.success(workDataOf(KEY_BACKUP_ID to backupIds.joinToString(",")))
+        return Result.success(
+            workDataOf(
+                KEY_BACKUP_ID to backupIds.joinToString(","),
+                "cloud_upload_failed" to anyCloudUploadFailed,
+            )
+        )
     }
 }

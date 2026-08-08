@@ -1,41 +1,41 @@
 {
   "project_info": {
-    "project_number": "468695416016",
-    "project_id": "sms-vault-abf50",
-    "storage_bucket": "sms-vault-abf50.firebasestorage.app"
+    "project_number": "123456789012",
+    "project_id": "sms-vault-demo",
+    "storage_bucket": "sms-vault-demo.appspot.com"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:468695416016:android:65729401c885dab94032d5",
+        "mobilesdk_app_id": "1:123456789012:android:abcdef1234567890abcdef",
         "android_client_info": {
           "package_name": "com.smsvault"
         }
       },
       "oauth_client": [
         {
-          "client_id": "468695416016-0fdj6no1j08r1mgmosl5ke6bhuf0smc8.apps.googleusercontent.com",
+          "client_id": "123456789012-androidclientid0123456789abcdef.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.smsvault",
-            "certificate_hash": "a96df6405c5b7c6c9efc7b4812194ee1cde484be"
+            "certificate_hash": "aabbcc1122334455667788990011223344556677"
           }
         },
         {
-          "client_id": "468695416016-t4to6mo4c3mb299n9p6o6v7vse4nggij.apps.googleusercontent.com",
+          "client_id": "123456789012-webclientid0123456789abcdefgh.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyAe87pbFkqH_LrX4qzWBJuDgxHqRO8HwiI"
+          "current_key": "AIzaSyDummyKeyForOpenSourceTemplate1234"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "468695416016-t4to6mo4c3mb299n9p6o6v7vse4nggij.apps.googleusercontent.com",
+              "client_id": "123456789012-webclientid0123456789abcdefgh.apps.googleusercontent.com",
               "client_type": 3
             }
           ]

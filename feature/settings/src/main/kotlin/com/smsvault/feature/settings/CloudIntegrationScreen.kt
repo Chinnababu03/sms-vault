@@ -1,7 +1,8 @@
 package com.smsvault.feature.settings
 
-import android.content.Intent
+import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -21,9 +22,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
-import com.google.android.gms.common.api.Scope
+import com.google.android.gms.auth.api.identity.Identity
 import com.smsvault.core.ui.components.GlassCard
 import com.smsvault.core.ui.theme.StatusSuccessColor
 import kotlinx.coroutines.launch
@@ -42,15 +41,30 @@ fun CloudIntegrationScreen(
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    val googleSignInLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
+    // Drive authorization consent launcher (drive.file scope + native Google account picker)
+    val driveAuthLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
-        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-        try {
-            val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
-            viewModel.handleSignInResult(account)
-        } catch (e: Exception) {
-            viewModel.handleSignInResult(null)
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            try {
+                val authResult = Identity.getAuthorizationClient(context)
+                    .getAuthorizationResultFromIntent(result.data)
+                val accessToken = authResult.accessToken
+                viewModel.onDriveAuthResult(granted = true, accessToken = accessToken)
+            } catch (e: Exception) {
+                viewModel.onDriveAuthResult(granted = false, accessToken = null, errorMsg = e.localizedMessage)
+            }
+        } else {
+            // User cancelled / dismissed the Google dialog
+            viewModel.onDriveAuthCancelled()
+        }
+    }
+
+    // Observe when we need to launch the Drive consent screen
+    LaunchedEffect(uiState.pendingDriveAuthIntent) {
+        uiState.pendingDriveAuthIntent?.let { intentSender ->
+            driveAuthLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
+            viewModel.clearPendingDriveAuthIntent()
         }
     }
 
@@ -98,24 +112,23 @@ fun CloudIntegrationScreen(
                 modifier = Modifier.padding(vertical = 12.dp),
             )
 
-            // 1. Google Drive Card
             CloudProviderCard(
                 name = "Google Drive",
-                scopeInfo = "appDataFolder (Isolated Zero-Knowledge App Storage)",
-                status = if (uiState.googleDriveConnected) "Connected & Active Target" else "Disconnected",
+                scopeInfo = "sms_vault_backup folder in your Google Drive",
+                status = when {
+                    uiState.isConnecting -> "Connecting..."
+                    uiState.googleDriveConnected -> "Connected & Active Target"
+                    else -> "Disconnected"
+                },
                 icon = Icons.Default.CloudQueue,
                 accentColor = primaryColor,
                 isConnected = uiState.googleDriveConnected,
-                onToggle = { enable -> 
+                isLoading = uiState.isConnecting,
+                onToggle = { enable ->
                     if (enable) {
-                        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                            .requestEmail()
-                            .requestScopes(Scope("https://www.googleapis.com/auth/drive.appdata"))
-                            .build()
-                        val client = GoogleSignIn.getClient(context, gso)
-                        googleSignInLauncher.launch(client.signInIntent)
+                        viewModel.requestDriveAuthorization(context)
                     } else {
-                        viewModel.disconnectDrive()
+                        viewModel.disconnectDrive(context)
                     }
                 },
             )
@@ -130,7 +143,6 @@ fun CloudIntegrationScreen(
                 modifier = Modifier.padding(vertical = 12.dp),
             )
 
-            // 2. Local Storage Card
             CloudProviderCard(
                 name = "Local Device Storage",
                 scopeInfo = "Encrypted App Data (Android/data/com.smsvault/files/backups)",
@@ -138,6 +150,7 @@ fun CloudIntegrationScreen(
                 icon = Icons.Default.Storage,
                 accentColor = secondaryColor,
                 isConnected = true,
+                isLoading = false,
                 onToggle = { },
                 enabled = false,
             )
@@ -155,6 +168,7 @@ fun CloudProviderCard(
     icon: ImageVector,
     accentColor: Color,
     isConnected: Boolean,
+    isLoading: Boolean = false,
     onToggle: (Boolean) -> Unit,
     enabled: Boolean = true,
     modifier: Modifier = Modifier,
@@ -186,12 +200,20 @@ fun CloudProviderCard(
                     Text(text = status, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = if (isConnected) StatusSuccessColor else MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            Switch(
-                checked = isConnected,
-                onCheckedChange = onToggle,
-                enabled = enabled,
-                colors = SwitchDefaults.colors(checkedThumbColor = accentColor),
-            )
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp).padding(end = 4.dp),
+                    strokeWidth = 2.dp,
+                    color = accentColor,
+                )
+            } else {
+                Switch(
+                    checked = isConnected,
+                    onCheckedChange = onToggle,
+                    enabled = enabled,
+                    colors = SwitchDefaults.colors(checkedThumbColor = accentColor),
+                )
+            }
         }
     }
 }

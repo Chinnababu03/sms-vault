@@ -25,4 +25,7 @@ class PreferencesRepositoryImpl @Inject constructor(
     override suspend fun setLastSuccessfulBackupEpochMs(epochMs: Long) = prefs.setLastSuccessfulBackupEpochMs(epochMs)
     override fun observeAnalyticsEnabled(): Flow<Boolean> = prefs.observeAnalyticsEnabled()
     override suspend fun setAnalyticsEnabled(enabled: Boolean) = prefs.setAnalyticsEnabled(enabled)
+    override fun observeUiStyle(): Flow<com.smsvault.core.domain.model.UiStyle> = prefs.observeUiStyle()
+    override suspend fun setUiStyle(style: com.smsvault.core.domain.model.UiStyle) = prefs.setUiStyle(style)
 }
+

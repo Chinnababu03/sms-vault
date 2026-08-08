@@ -2,23 +2,21 @@ package com.smsvault.feature.settings
 
 import android.app.Application
 import android.content.Context
+import android.content.IntentSender
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInAccount
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.auth.api.identity.AuthorizationRequest
+import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.common.api.Scope
 import com.smsvault.core.cloudstorage.CloudSecrets
 import com.smsvault.core.cloudstorage.impl.GoogleDriveProvider
 import com.smsvault.core.data.datastore.SmsVaultPreferences
-import com.smsvault.core.domain.model.ProviderId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import com.google.android.gms.auth.GoogleAuthUtil
 
 class CloudIntegrationViewModel(
     application: Application,
@@ -26,6 +24,11 @@ class CloudIntegrationViewModel(
     private val prefs: SmsVaultPreferences,
     private val cloudSecrets: CloudSecrets
 ) : AndroidViewModel(application) {
+
+    companion object {
+        private const val TAG = "DriveAuth"
+        private val DRIVE_FILE_SCOPE = Scope("https://www.googleapis.com/auth/drive.file")
+    }
 
     private val _uiState = MutableStateFlow(CloudIntegrationUiState())
     val uiState: StateFlow<CloudIntegrationUiState> = _uiState.asStateFlow()
@@ -41,52 +44,108 @@ class CloudIntegrationViewModel(
         }
     }
 
-    fun handleSignInResult(account: GoogleSignInAccount?) {
-        if (account == null) {
-            _uiState.value = _uiState.value.copy(googleDriveConnected = false, error = "Sign-in failed")
-            return
-        }
+    fun requestDriveAuthorization(context: Context) {
+        _uiState.value = _uiState.value.copy(isConnecting = true, error = null)
 
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                // Get the OAuth access token for Drive API
-                val scopes = "oauth2:${"https://www.googleapis.com/auth/drive.appdata"}"
-                val token = GoogleAuthUtil.getToken(getApplication(), account.account!!, scopes)
-                
-                gdriveProvider.storeTokens(token, null)
-                
-                _uiState.value = _uiState.value.copy(googleDriveConnected = true, error = null)
-            } catch (e: Exception) {
-                val errorMsg = if (e is com.google.android.gms.auth.GoogleAuthException) {
-                    "Cloud Console OAuth setup missing. Android Client ID with SHA-1 is required."
+        val authRequest = AuthorizationRequest.builder()
+            .setRequestedScopes(listOf(DRIVE_FILE_SCOPE))
+            .build()
+
+        Identity.getAuthorizationClient(context)
+            .authorize(authRequest)
+            .addOnSuccessListener { authResult ->
+                val accessToken = authResult.accessToken
+                if (accessToken != null) {
+                    gdriveProvider.storeTokens(accessToken, null)
+                    _uiState.value = _uiState.value.copy(
+                        googleDriveConnected = true,
+                        isConnecting = false,
+                        error = null
+                    )
+                    Log.i(TAG, "Drive authorized directly (cached grant)")
+                } else if (authResult.hasResolution()) {
+                    val pendingIntent = authResult.pendingIntent
+                    if (pendingIntent != null) {
+                        _uiState.value = _uiState.value.copy(
+                            pendingDriveAuthIntent = pendingIntent.intentSender
+                        )
+                        Log.i(TAG, "Drive consent / account picker resolution requested")
+                    } else {
+                        _uiState.value = _uiState.value.copy(
+                            isConnecting = false,
+                            error = "Authorization pending intent was null"
+                        )
+                    }
                 } else {
-                    e.message ?: "Failed to connect"
+                    _uiState.value = _uiState.value.copy(
+                        isConnecting = false,
+                        error = "Drive authorization failed: No resolution available"
+                    )
                 }
-                _uiState.value = _uiState.value.copy(googleDriveConnected = false, error = errorMsg)
-                gdriveProvider.clearTokens()
             }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Drive authorization request failed", e)
+                _uiState.value = _uiState.value.copy(
+                    isConnecting = false,
+                    error = "Drive authorization error: ${e.localizedMessage ?: e.message}"
+                )
+            }
+    }
+
+    fun onDriveAuthResult(granted: Boolean, accessToken: String?, errorMsg: String? = null) {
+        if (granted && accessToken != null) {
+            gdriveProvider.storeTokens(accessToken, null)
+            _uiState.value = _uiState.value.copy(
+                googleDriveConnected = true,
+                isConnecting = false,
+                error = null
+            )
+            Log.i(TAG, "Drive permission granted, access token stored")
+        } else {
+            _uiState.value = _uiState.value.copy(
+                googleDriveConnected = false,
+                isConnecting = false,
+                error = errorMsg
+            )
+            gdriveProvider.clearTokens()
         }
     }
 
-    fun disconnectDrive() {
+    fun onDriveAuthCancelled() {
+        _uiState.value = _uiState.value.copy(
+            isConnecting = false,
+            error = null
+        )
+    }
+
+    fun disconnectDrive(context: Context) {
         viewModelScope.launch(Dispatchers.IO) {
             gdriveProvider.clearTokens()
-            
-            val signInClient = GoogleSignIn.getClient(getApplication<Application>(), GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).build())
-            signInClient.signOut()
-            
-            
-            _uiState.value = _uiState.value.copy(googleDriveConnected = false)
+            try {
+                Identity.getSignInClient(context).signOut()
+            } catch (e: Exception) {
+                Log.w(TAG, "Sign-out error (non-fatal)", e)
+            }
+            _uiState.value = _uiState.value.copy(
+                googleDriveConnected = false,
+                pendingDriveAuthIntent = null
+            )
         }
     }
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
     }
+
+    fun clearPendingDriveAuthIntent() {
+        _uiState.value = _uiState.value.copy(pendingDriveAuthIntent = null)
+    }
 }
 
 data class CloudIntegrationUiState(
     val googleDriveConnected: Boolean = false,
     val localConnected: Boolean = true,
-    val error: String? = null
+    val isConnecting: Boolean = false,
+    val error: String? = null,
+    val pendingDriveAuthIntent: IntentSender? = null,
 )

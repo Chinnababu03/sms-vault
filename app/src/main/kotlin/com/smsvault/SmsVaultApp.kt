@@ -118,6 +118,7 @@ fun SmsVaultApp() {
     val backupState by backupViewModel.uiState.collectAsStateWithLifecycle()
     val restoreState by restoreViewModel.uiState.collectAsStateWithLifecycle()
     val settingsState by settingsViewModel.uiState.collectAsStateWithLifecycle()
+    val coroutineScope = rememberCoroutineScope()
 
     if (authState.isCheckingAuth) {
         // Issue 2: Show a loading screen instead of flashing Login
@@ -146,7 +147,10 @@ fun SmsVaultApp() {
         }
     }
 
-    SmsVaultTheme(darkTheme = settingsState.isDarkTheme) {
+    SmsVaultTheme(
+        darkTheme = settingsState.isDarkTheme,
+        uiStyle = settingsState.uiStyle,
+    ) {
         NavHost(
             navController = navController,
             startDestination = startDestination,
@@ -164,7 +168,6 @@ fun SmsVaultApp() {
                     onGoogleSignIn = {
                         val activityContext = context.findActivity()
                         if (activityContext != null) {
-                            val coroutineScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main)
                             coroutineScope.launch {
                                 try {
                                     val googleIdOption = com.google.android.libraries.identity.googleid.GetGoogleIdOption.Builder()
@@ -296,6 +299,7 @@ fun SmsVaultApp() {
                     onToggleAes = settingsViewModel::setAesEnabled,
                     onToggleCharging = settingsViewModel::setRequireCharging,
                     onToggleWifi = settingsViewModel::setWifiOnly,
+                    onSetUiStyle = settingsViewModel::setUiStyle,
                     onSignOut = {
                         authViewModel.signOut()
                         navController.navigate("auth") {
@@ -309,7 +313,8 @@ fun SmsVaultApp() {
 
             // 8. Cloud Integrations Screen
             composable("cloud_integrations") {
-                CloudIntegrationScreen(viewModel = cloudIntegrationViewModel,
+                CloudIntegrationScreen(
+                    viewModel = cloudIntegrationViewModel,
                     onBack = { navController.popBackStack() },
                 )
             }

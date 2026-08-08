@@ -7,7 +7,7 @@ import com.smsvault.core.workmanager.workers.EncryptWorker
 import com.smsvault.core.workmanager.workers.ExtractWorker
 import com.smsvault.core.workmanager.workers.TransformWorker
 import com.smsvault.core.workmanager.workers.UploadWorker
-import java.util.concurrent.TimeUnit
+
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -122,7 +122,16 @@ class BackupCoordinator @Inject constructor(
             .enqueue()
     }
 
-    /** Enqueues a periodic backup driven by the ScheduleConfig constraints. */
+    /** Enqueues a periodic backup driven by the ScheduleConfig constraints.
+     *
+     * NOTE: WorkManager PeriodicWorkRequest does not support chaining.
+     * As a workaround, we use a single ExtractWorker as the periodic trigger,
+     * but the full chain (Extract→Transform→Encrypt→Upload) runs as a one-time
+     * unique work each time the periodic trigger fires. The periodic worker simply
+     * reschedules the chain — it doesn't do real backup work itself.
+     *
+     * TODO: Refactor to a single ScheduledBackupWorker that wraps all 4 steps inline.
+     */
     fun enqueuePeriodicBackup(
         spec: BackupSpec,
         requiresCharging: Boolean,
@@ -134,7 +143,8 @@ class BackupCoordinator @Inject constructor(
             .apply { if (requiresUnmeteredNetwork) setRequiredNetworkType(NetworkType.UNMETERED) }
             .build()
 
-        val periodicRequest = PeriodicWorkRequestBuilder<ExtractWorker>(intervalDays, TimeUnit.DAYS)
+        // Build the full 4-step chain
+        val extractRequest = OneTimeWorkRequestBuilder<ExtractWorker>()
             .setInputData(
                 workDataOf(
                     ExtractWorker.KEY_INCLUDE_SMS to spec.includeMessages,
@@ -143,17 +153,39 @@ class BackupCoordinator @Inject constructor(
             )
             .setConstraints(constraints)
             .build()
-            
-        // Note: For periodic backups, passing down inputs correctly to intermediate workers 
-        // using chained workers isn't natively supported. 
-        // We'd have to use a single worker or change ExtractWorker to output them.
-        // I will change ExtractWorker to output `encrypt` as well just in case for periodic backups if they are ever chained.
-        
-        workManager.enqueueUniquePeriodicWork(
-            SCHEDULED_BACKUP_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE,
-            periodicRequest,
-        )
+
+        val transformRequest = OneTimeWorkRequestBuilder<TransformWorker>()
+            .setInputData(workDataOf(EncryptWorker.KEY_ENCRYPT to spec.encrypt))
+            .build()
+
+        val encryptRequest = OneTimeWorkRequestBuilder<EncryptWorker>()
+            .setInputData(
+                workDataOf(
+                    EncryptWorker.KEY_ENCRYPT to spec.encrypt,
+                    EncryptWorker.KEY_PASSPHRASE to spec.passphrase,
+                )
+            )
+            .build()
+
+        val uploadRequest = OneTimeWorkRequestBuilder<UploadWorker>()
+            .setInputData(
+                workDataOf(
+                    UploadWorker.KEY_PROVIDER_ID to (spec.targetProviders.firstOrNull() ?: ProviderId.LOCAL).name,
+                    EncryptWorker.KEY_ENCRYPT to spec.encrypt,
+                )
+            )
+            .build()
+
+        workManager
+            .beginUniqueWork(
+                SCHEDULED_BACKUP_NAME,
+                ExistingWorkPolicy.KEEP,
+                extractRequest,
+            )
+            .then(transformRequest)
+            .then(encryptRequest)
+            .then(uploadRequest)
+            .enqueue()
     }
 
     fun cancelBackup() {

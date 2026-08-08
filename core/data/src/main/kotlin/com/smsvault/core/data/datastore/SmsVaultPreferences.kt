@@ -29,6 +29,7 @@ object PrefKeys {
     val AES_ENABLED = booleanPreferencesKey("pref_aes_enabled")
     val REQUIRE_CHARGING = booleanPreferencesKey("pref_require_charging")
     val WIFI_ONLY = booleanPreferencesKey("pref_wifi_only")
+    val UI_STYLE = stringPreferencesKey("pref_ui_style")
 }
 
 @Singleton
@@ -106,4 +107,14 @@ class SmsVaultPreferences @Inject constructor(
     suspend fun setWifiOnly(enabled: Boolean) {
         dataStore.edit { it[PrefKeys.WIFI_ONLY] = enabled }
     }
+
+    fun observeUiStyle(): Flow<com.smsvault.core.domain.model.UiStyle> = dataStore.data.map { prefs ->
+        prefs[PrefKeys.UI_STYLE]?.let {
+            runCatching { com.smsvault.core.domain.model.UiStyle.valueOf(it) }.getOrNull()
+        } ?: com.smsvault.core.domain.model.UiStyle.MATERIAL_YOU
+    }
+    suspend fun setUiStyle(style: com.smsvault.core.domain.model.UiStyle) {
+        dataStore.edit { it[PrefKeys.UI_STYLE] = style.name }
+    }
 }
+

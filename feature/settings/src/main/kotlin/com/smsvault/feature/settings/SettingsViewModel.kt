@@ -1,9 +1,9 @@
 package com.smsvault.feature.settings
 
-import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.smsvault.core.data.datastore.SmsVaultPreferences
+import com.smsvault.core.domain.model.UiStyle
 import com.smsvault.core.domain.repository.ThemeMode
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -16,6 +16,7 @@ data class SettingsUiState(
     val chargingOnly: Boolean = true,
     val wifiOnly: Boolean = true,
     val isDarkTheme: Boolean = true,
+    val uiStyle: UiStyle = UiStyle.MATERIAL_YOU,
 )
 
 class SettingsViewModel(
@@ -26,13 +27,15 @@ class SettingsViewModel(
         prefs.observeAesEnabled(),
         prefs.observeRequireCharging(),
         prefs.observeWifiOnly(),
-        prefs.observeThemeMode()
-    ) { aesEnabled, chargingOnly, wifiOnly, themeMode ->
+        prefs.observeThemeMode(),
+        prefs.observeUiStyle()
+    ) { aesEnabled, chargingOnly, wifiOnly, themeMode, uiStyle ->
         SettingsUiState(
             aesEnabled = aesEnabled,
             chargingOnly = chargingOnly,
             wifiOnly = wifiOnly,
-            isDarkTheme = themeMode == ThemeMode.DARK || themeMode == ThemeMode.SYSTEM
+            isDarkTheme = themeMode == ThemeMode.DARK || themeMode == ThemeMode.SYSTEM,
+            uiStyle = uiStyle
         )
     }.stateIn(
         scope = viewModelScope,
@@ -50,6 +53,10 @@ class SettingsViewModel(
 
     fun setWifiOnly(enabled: Boolean) {
         viewModelScope.launch { prefs.setWifiOnly(enabled) }
+    }
+
+    fun setUiStyle(style: UiStyle) {
+        viewModelScope.launch { prefs.setUiStyle(style) }
     }
 
     fun toggleTheme() {

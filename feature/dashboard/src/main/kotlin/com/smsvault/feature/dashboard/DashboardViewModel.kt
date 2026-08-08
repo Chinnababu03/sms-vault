@@ -34,6 +34,9 @@ class DashboardViewModel(
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
+    private var currentUserIdentifier: String? = null
+    private var lastBackupTimestampForCurrentUser: Long = 0L
+
     init {
         refreshCounts()
 
@@ -55,6 +58,11 @@ class DashboardViewModel(
 
         viewModelScope.launch {
             authRepository.observeAuthState().collect { user ->
+                val newIdentifier = user?.email?.ifBlank { user.uid } ?: user?.uid
+                if (newIdentifier != currentUserIdentifier) {
+                    currentUserIdentifier = newIdentifier
+                    lastBackupTimestampForCurrentUser = 0L // Reset when logging in with new/different account!
+                }
                 _uiState.value = _uiState.value.copy(
                     userEmail = user?.displayName?.ifBlank { user.email } ?: user?.email ?: "Guest User"
                 )
@@ -72,10 +80,12 @@ class DashboardViewModel(
     }
 
     fun onBackupClicked(onNavigateToBackup: () -> Unit) {
-        val latestBackup = _uiState.value.backups.maxByOrNull { it.createdAtEpochMs }
-        if (latestBackup != null && (System.currentTimeMillis() - latestBackup.createdAtEpochMs) < 5 * 60 * 1000) {
+        val now = System.currentTimeMillis()
+        // Only show duplicate warning if current account made a backup in this session within the last 5 minutes
+        if (lastBackupTimestampForCurrentUser > 0L && (now - lastBackupTimestampForCurrentUser) < 5 * 60 * 1000) {
             _uiState.value = _uiState.value.copy(showDuplicateWarning = true)
         } else {
+            lastBackupTimestampForCurrentUser = now
             onNavigateToBackup()
         }
     }
@@ -88,6 +98,7 @@ class DashboardViewModel(
     fun dismissScheduleDialog() { _uiState.value = _uiState.value.copy(showScheduleDialog = false) }
     fun confirmDuplicateBackup(onNavigateToBackup: () -> Unit) {
         _uiState.value = _uiState.value.copy(showDuplicateWarning = false)
+        lastBackupTimestampForCurrentUser = System.currentTimeMillis()
         onNavigateToBackup()
     }
 

@@ -2,10 +2,12 @@ package com.smsvault.core.ui.components
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -20,6 +22,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.smsvault.core.domain.model.UiStyle
+import com.smsvault.core.ui.theme.LocalUiStyle
 
 @Composable
 fun VaultButton(
@@ -30,17 +34,25 @@ fun VaultButton(
     enabled: Boolean = true,
     isSecondary: Boolean = false,
 ) {
+    val uiStyle = LocalUiStyle.current
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
     val scaleAnim by animateFloatAsState(
-        targetValue = if (isPressed) 0.96f else 1.0f,
+        targetValue = if (isPressed) 0.95f else 1.0f,
         animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioMediumBouncy),
         label = "VaultButtonScale",
     )
 
     val primaryColor = MaterialTheme.colorScheme.primary
     val secondaryColor = MaterialTheme.colorScheme.secondary
+
+    val buttonShape = when (uiStyle) {
+        UiStyle.CLAYMORPHISM -> CircleShape
+        UiStyle.GLASSMORPHISM -> RoundedCornerShape(20.dp)
+        UiStyle.NEUMORPHISM -> RoundedCornerShape(16.dp)
+        UiStyle.MATERIAL_YOU -> RoundedCornerShape(16.dp)
+    }
 
     val backgroundBrush = if (isSecondary) {
         Brush.horizontalGradient(
@@ -64,19 +76,32 @@ fun VaultButton(
         MaterialTheme.colorScheme.onPrimary
     }
 
+    val shadowElevation = when {
+        !enabled -> 0.dp
+        uiStyle == UiStyle.CLAYMORPHISM -> 10.dp
+        uiStyle == UiStyle.GLASSMORPHISM -> 8.dp
+        uiStyle == UiStyle.NEUMORPHISM -> 6.dp
+        else -> 4.dp
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(54.dp)
             .scale(scaleAnim)
             .shadow(
-                elevation = if (enabled && !isSecondary) 8.dp else 0.dp,
-                shape = RoundedCornerShape(16.dp),
-                spotColor = primaryColor,
+                elevation = shadowElevation,
+                shape = buttonShape,
+                spotColor = primaryColor.copy(alpha = 0.3f),
             )
-            .clip(RoundedCornerShape(16.dp))
+            .clip(buttonShape)
             .background(
                 brush = if (enabled) backgroundBrush else Brush.linearGradient(listOf(Color.Gray.copy(0.3f), Color.Gray.copy(0.3f)))
+            )
+            .then(
+                if (uiStyle == UiStyle.GLASSMORPHISM && enabled) {
+                    Modifier.border(1.dp, Color.White.copy(alpha = 0.3f), buttonShape)
+                } else Modifier
             )
             .clickable(
                 enabled = enabled && !isLoading,

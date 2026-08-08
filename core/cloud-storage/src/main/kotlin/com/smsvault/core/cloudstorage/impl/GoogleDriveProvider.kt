@@ -35,7 +35,7 @@ class GoogleDriveProvider @Inject constructor(
     override val id: ProviderId = ProviderId.GOOGLE_DRIVE
 
     companion object {
-        private const val APP_DATA_FOLDER = "appDataFolder"
+        private const val BACKUP_FOLDER_NAME = "sms_vault_backup"
         private const val PREF_FILE = "gdrive_auth"
         private const val KEY_ACCESS_TOKEN = "access_token"
         private const val KEY_REFRESH_TOKEN = "refresh_token"
@@ -83,12 +83,35 @@ class GoogleDriveProvider @Inject constructor(
         ).setApplicationName(DRIVE_APP_NAME).build()
     }
 
+    private fun getOrCreateBackupFolder(drive: Drive): String {
+        val queryResult = drive.files().list()
+            .setQ("name = '$BACKUP_FOLDER_NAME' and mimeType = 'application/vnd.google-apps.folder' and trashed = false")
+            .setSpaces("drive")
+            .setFields("files(id)")
+            .execute()
+
+        val existingFolder = queryResult.files?.firstOrNull()
+        if (existingFolder != null) {
+            return existingFolder.id
+        }
+
+        val folderMetadata = DriveFile().apply {
+            name = BACKUP_FOLDER_NAME
+            mimeType = "application/vnd.google-apps.folder"
+        }
+        val createdFolder = drive.files().create(folderMetadata)
+            .setFields("id")
+            .execute()
+        return createdFolder.id
+    }
+
     override suspend fun list(): Result<List<RemoteFileHandle>> = withContext(Dispatchers.IO) {
         runCatching {
             val token = getAccessToken() ?: return@runCatching emptyList()
             val drive = buildDriveService(token)
+            val folderId = getOrCreateBackupFolder(drive)
             val result = drive.files().list()
-                .setSpaces(APP_DATA_FOLDER)
+                .setQ("'$folderId' in parents and trashed = false")
                 .setFields("files(id, name, size, createdTime)")
                 .execute()
             result.files.map { file ->
@@ -107,12 +130,16 @@ class GoogleDriveProvider @Inject constructor(
         runCatching {
             val token = getAccessToken() ?: throw IllegalStateException("Not authorized")
             val drive = buildDriveService(token)
+            val folderId = getOrCreateBackupFolder(drive)
+
+            val mime = if (file.fileName.endsWith(".xml", ignoreCase = true)) "text/xml" else BACKUP_MIME
+
             val metadata = DriveFile().apply {
                 name = file.fileName
-                parents = listOf(APP_DATA_FOLDER)
+                parents = listOf(folderId)
             }
             val mediaContent = com.google.api.client.http.InputStreamContent(
-                BACKUP_MIME,
+                mime,
                 ByteArrayInputStream(file.data)
             )
             val uploaded = drive.files().create(metadata, mediaContent)

@@ -1,6 +1,8 @@
 package com.smsvault.feature.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -18,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.smsvault.core.domain.model.UiStyle
 import com.smsvault.core.ui.components.GlassCard
 import com.smsvault.core.ui.components.VaultButton
 
@@ -30,6 +33,7 @@ fun SettingsScreen(
     onToggleAes: (Boolean) -> Unit,
     onToggleCharging: (Boolean) -> Unit,
     onToggleWifi: (Boolean) -> Unit,
+    onSetUiStyle: (UiStyle) -> Unit = {},
     onSignOut: () -> Unit,
     onBack: () -> Unit,
     onOpenCloudIntegrations: () -> Unit = {},
@@ -129,9 +133,9 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Appearance & Theme Section
+            // Design System / UI Style Selector Section
             Text(
-                text = "Appearance & Theme",
+                text = "UI Design Style & Theme",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = primaryColor,
@@ -141,12 +145,66 @@ fun SettingsScreen(
             GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 20.dp) {
                 Column {
                     SettingToggleRow(
-                        title = if (state.isDarkTheme) "Cyber-Purple Dark Theme" else "Emerald Green Light Theme",
-                        subtitle = if (state.isDarkTheme) "Switch to Emerald Green Light Mode" else "Switch to Cyber-Purple Dark Mode",
+                        title = if (state.isDarkTheme) "Dark Theme" else "Light Theme",
+                        subtitle = if (state.isDarkTheme) "Switch to Light Mode" else "Switch to Dark Mode",
                         icon = if (state.isDarkTheme) Icons.Default.DarkMode else Icons.Default.LightMode,
                         checked = state.isDarkTheme,
                         onCheckedChange = { onToggleTheme() },
                     )
+
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                        modifier = Modifier.padding(vertical = 12.dp)
+                    )
+
+                    Text(
+                        text = "Design Morphism Style",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    UiStyle.values().forEach { style ->
+                        val isSelected = state.uiStyle == style
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (isSelected) primaryColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.3f)
+                                )
+                                .border(
+                                    width = if (isSelected) 1.5.dp else 0.dp,
+                                    color = if (isSelected) primaryColor else androidx.compose.ui.graphics.Color.Transparent,
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .clickable { onSetUiStyle(style) }
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = style.displayName,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) primaryColor else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = style.description,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            RadioButton(
+                                selected = isSelected,
+                                onClick = { onSetUiStyle(style) },
+                                colors = RadioButtonDefaults.colors(selectedColor = primaryColor)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                    }
                 }
             }
 

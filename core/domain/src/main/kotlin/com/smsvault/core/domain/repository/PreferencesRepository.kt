@@ -19,4 +19,7 @@ interface PreferencesRepository {
     suspend fun setLastSuccessfulBackupEpochMs(epochMs: Long)
     fun observeAnalyticsEnabled(): Flow<Boolean>
     suspend fun setAnalyticsEnabled(enabled: Boolean)
+    fun observeUiStyle(): Flow<com.smsvault.core.domain.model.UiStyle>
+    suspend fun setUiStyle(style: com.smsvault.core.domain.model.UiStyle)
 }
+
